@@ -1,0 +1,50 @@
+services:
+  wildfly:
+    image: quay.io/wildfly/wildfly:latest
+    user: root
+    command: /opt/jboss/wildfly/bin/standalone.sh -b 0.0.0.0 -bmanagement 0.0.0.0
+    volumes:
+      - wildfly-data:/opt/jboss/wildfly/standalone/data
+      - wildfly-logs:/opt/jboss/wildfly/standalone/log
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8080'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      wildfly:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.5"
+
+volumes:
+  wildfly-data:
+  wildfly-logs:
+
+networks:
+  app-network:
+    driver: bridge
